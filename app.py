@@ -1,8 +1,9 @@
 """
 Transportation Problem Solver - Streamlit Web App
 VAM + MODI Method with Step-by-Step Visualization
+Hospital Medical Supplies Distribution Example
 
-Author: Barira zaib
+Author: barira zaib
 Date: 2025-12-05
 """
 
@@ -14,8 +15,8 @@ import time
 
 # Page config
 st.set_page_config(
-    page_title="Transportation Problem Solver",
-    page_icon="🚚",
+    page_title="Hospital Transportation Problem Solver",
+    page_icon="🏥",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -116,28 +117,28 @@ def initialize_model(cost_matrix, supply, demand):
 
 def display_cost_matrix(model):
     """Display cost matrix with current supply/demand"""
-    st.markdown('<p class="sub-header">📊 Cost Matrix</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">📊 Shipping Cost Matrix (per unit)</p>', unsafe_allow_html=True)
     
     cost_df = pd.DataFrame(
         model.cost,
-        columns=[f'D{i}' for i in range(model.n)],
-        index=[f'S{i}' for i in range(model.m)]
+        columns=[f'Hospital {i+1}' for i in range(model.n)],
+        index=[f'Warehouse {i+1}' for i in range(model.m)]
     )
     st.dataframe(cost_df.style.highlight_max(axis=None, color='#ffcccb').format("{:.2f}"), 
                  use_container_width=True)
     
     col1, col2 = st.columns(2)
     with col1:
-        st.info(f"**Current Supply:** {[round(x, 2) for x in model.supply]}")
+        st.info(f"**Current Supply (units):** {[round(x, 2) for x in model.supply]}")
     with col2:
-        st.info(f"**Current Demand:** {[round(x, 2) for x in model.demand]}")
+        st.info(f"**Current Demand (units):** {[round(x, 2) for x in model.demand]}")
     
     if model.dummy_added:
-        st.warning(f"⚠️ Dummy {'row' if model.dummy_added == 'row' else 'column'} added to balance the problem")
+        st.warning(f"⚠️ Dummy {'warehouse' if model.dummy_added == 'row' else 'hospital'} added to balance the problem")
 
 def display_allocation_matrix(model):
     """Display current allocation matrix"""
-    st.markdown('<p class="sub-header">📦 Allocation Matrix</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">📦 Allocation Matrix (Medical Supplies)</p>', unsafe_allow_html=True)
     
     alloc_data = []
     for i in range(model.m):
@@ -152,16 +153,16 @@ def display_allocation_matrix(model):
     
     alloc_df = pd.DataFrame(
         alloc_data,
-        columns=[f'D{i}' for i in range(model.n)],
-        index=[f'S{i}' for i in range(model.m)]
+        columns=[f'Hospital {i+1}' for i in range(model.n)],
+        index=[f'Warehouse {i+1}' for i in range(model.m)]
     )
     st.dataframe(alloc_df, use_container_width=True)
-    st.caption("* indicates basic variables")
+    st.caption("* indicates basic variables (active shipping routes)")
     
     total_cost = model.total_cost()
     st.markdown(f"""
         <div class="metric-card">
-            <h2>💰 Total Cost</h2>
+            <h2>💰 Total Transportation Cost</h2>
             <h1>${total_cost:,.2f}</h1>
         </div>
     """, unsafe_allow_html=True)
@@ -172,19 +173,19 @@ def display_vam_step(step_data):
         return
     
     st.markdown('<div class="info-box">', unsafe_allow_html=True)
-    st.markdown(f"**✅ Step {st.session_state.vam_step}:** Allocated **{step_data['alloc_qty']:.2f}** "
-                f"to cell **({step_data['chosen_cell'][0]}, {step_data['chosen_cell'][1]})** "
-                f"with cost **{step_data['cost_cell']:.2f}**")
+    st.markdown(f"**✅ Step {st.session_state.vam_step}:** Allocated **{step_data['alloc_qty']:.2f} units** "
+                f"from **Warehouse {step_data['chosen_cell'][0]+1}** to **Hospital {step_data['chosen_cell'][1]+1}** "
+                f"with cost **${step_data['cost_cell']:.2f}/unit**")
     st.markdown('</div>', unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     with col1:
-        st.write("**Row Penalties:**")
-        pen_row = {f"S{i}": round(p, 2) for i, p in enumerate(step_data['penalty_row']) if p >= 0}
+        st.write("**Warehouse Penalties:**")
+        pen_row = {f"W{i+1}": round(p, 2) for i, p in enumerate(step_data['penalty_row']) if p >= 0}
         st.json(pen_row)
     with col2:
-        st.write("**Column Penalties:**")
-        pen_col = {f"D{j}": round(p, 2) for j, p in enumerate(step_data['penalty_col']) if p >= 0}
+        st.write("**Hospital Penalties:**")
+        pen_col = {f"H{j+1}": round(p, 2) for j, p in enumerate(step_data['penalty_col']) if p >= 0}
         st.json(pen_col)
 
 def display_uv_method(model):
@@ -196,12 +197,12 @@ def display_uv_method(model):
     
     col1, col2 = st.columns(2)
     with col1:
-        st.write("**U Potentials (Rows):**")
-        u_dict = {f"u{i}": round(val, 4) if val is not None else 'N/A' for i, val in enumerate(u)}
+        st.write("**U Potentials (Warehouses):**")
+        u_dict = {f"u{i+1}": round(val, 4) if val is not None else 'N/A' for i, val in enumerate(u)}
         st.json(u_dict)
     with col2:
-        st.write("**V Potentials (Columns):**")
-        v_dict = {f"v{j}": round(val, 4) if val is not None else 'N/A' for j, val in enumerate(v)}
+        st.write("**V Potentials (Hospitals):**")
+        v_dict = {f"v{j+1}": round(val, 4) if val is not None else 'N/A' for j, val in enumerate(v)}
         st.json(v_dict)
     
     st.write("**Reduced Costs Matrix:**")
@@ -217,15 +218,15 @@ def display_uv_method(model):
     
     red_df = pd.DataFrame(
         red_data,
-        columns=[f'D{i}' for i in range(model.n)],
-        index=[f'S{i}' for i in range(model.m)]
+        columns=[f'Hospital {i+1}' for i in range(model.n)],
+        index=[f'Warehouse {i+1}' for i in range(model.m)]
     )
     st.dataframe(red_df, use_container_width=True)
     
     # Check for entering variable
     pos, val, _ = model.find_entering()
     if pos:
-        st.markdown(f'<div class="warning-box">⚡ **Entering Cell:** ({pos[0]}, {pos[1]}) with reduced cost {val:.4f}</div>', 
+        st.markdown(f'<div class="warning-box">⚡ **Entering Cell:** Warehouse {pos[0]+1} → Hospital {pos[1]+1} with reduced cost {val:.4f}</div>', 
                     unsafe_allow_html=True)
         return True
     else:
@@ -234,8 +235,9 @@ def display_uv_method(model):
         return False
 
 # Main App
-st.markdown('<p class="main-header">🚚 Transportation Problem Solver</p>', unsafe_allow_html=True)
+st.markdown('<p class="main-header">🏥 Hospital Medical Supplies Transportation Solver</p>', unsafe_allow_html=True)
 st.markdown("**VAM (Vogel's Approximation Method) + MODI (Modified Distribution Method)**")
+st.markdown("*Optimizing medical supplies delivery from warehouses to hospitals*")
 st.divider()
 
 # Sidebar for input
@@ -243,13 +245,13 @@ with st.sidebar:
     st.header("📝 Problem Setup")
     
     # Dimensions
-    m = st.number_input("Number of Sources (m)", min_value=2, max_value=10, value=3)
-    n = st.number_input("Number of Destinations (n)", min_value=2, max_value=10, value=4)
+    m = st.number_input("Number of Warehouses", min_value=2, max_value=10, value=10)
+    n = st.number_input("Number of Hospitals", min_value=2, max_value=10, value=10)
     
     st.divider()
     
     # Load example button
-    if st.button("📚 Load Example Problem", use_container_width=True):
+    if st.button("🏥 Load Hospital Example (10×10)", use_container_width=True):
         st.session_state.example_loaded = True
         st.rerun()
     
@@ -258,7 +260,14 @@ with st.sidebar:
     # About section
     with st.expander("ℹ️ About This Tool"):
         st.markdown("""
-        This tool solves transportation problems using:
+        This tool solves the **Hospital Medical Supplies Transportation Problem**:
+        
+        **Problem Context:**
+        - 10 warehouses supplying medical equipment
+        - 10 hospitals requiring supplies
+        - Minimize total shipping cost
+        
+        **Solution Method:**
         
         1. **VAM (Initial Solution)**
            - Calculates row/column penalties
@@ -282,25 +291,46 @@ with tab1:
     
     # Load example data if requested
     if 'example_loaded' in st.session_state and st.session_state.example_loaded:
-        example_cost = [[19, 30, 50, 10], [70, 30, 40, 60], [40, 8, 70, 20]]
-        example_supply = [7, 9, 18]
-        example_demand = [5, 8, 7, 14]
-        m, n = 3, 4
+        # Hospital transportation problem: 10 warehouses × 10 hospitals
+        m, n = 10, 10
+        
+        # Supply from 10 warehouses (medical supplies in units)
+        example_supply = [100, 90, 80, 110, 95, 85, 105, 88, 92, 98]
+        
+        # Demand at 10 hospitals (medical supplies in units)
+        example_demand = [80, 70, 60, 90, 85, 75, 95, 82, 88, 78]
+        
+        # Cost matrix (shipping cost per unit from each warehouse to each hospital)
+        example_cost = [
+            [12, 15, 18, 10, 14, 16, 13, 11, 17, 19],
+            [14, 11, 16, 12, 15, 18, 14, 13, 12, 16],
+            [16, 13, 14, 15, 11, 12, 16, 17, 14, 15],
+            [10, 14, 17, 11, 13, 15, 12, 14, 16, 18],
+            [15, 12, 13, 14, 10, 14, 15, 16, 13, 14],
+            [17, 16, 15, 13, 14, 11, 17, 15, 14, 13],
+            [13, 15, 12, 16, 17, 14, 10, 12, 15, 16],
+            [11, 14, 16, 12, 15, 13, 14, 9, 11, 17],
+            [14, 13, 15, 14, 12, 16, 13, 14, 10, 15],
+            [18, 17, 14, 15, 16, 15, 18, 16, 14, 11]
+        ]
+        
         st.session_state.example_loaded = False
+        st.success("✅ Hospital example loaded! 10 warehouses × 10 hospitals")
+        st.info(f"📊 Total Supply: {sum(example_supply)} units | Total Demand: {sum(example_demand)} units")
     else:
         example_cost = [[0]*n for _ in range(m)]
         example_supply = [0]*m
         example_demand = [0]*n
     
     # Cost matrix input
-    st.write("**Cost Matrix** (Sources × Destinations)")
+    st.write("**Shipping Cost Matrix ($/unit)** - Warehouses × Hospitals")
     cost_matrix = []
     for i in range(m):
         cols = st.columns(n)
         row = []
         for j in range(n):
             with cols[j]:
-                val = st.number_input(f"C[{i},{j}]", value=float(example_cost[i][j]), 
+                val = st.number_input(f"W{i+1}→H{j+1}", value=float(example_cost[i][j]), 
                                      key=f"cost_{i}_{j}", label_visibility="collapsed")
                 row.append(val)
         cost_matrix.append(row)
@@ -310,18 +340,18 @@ with tab1:
     # Supply and demand
     col1, col2 = st.columns(2)
     with col1:
-        st.write("**Supply** (from each source)")
+        st.write("**Supply (units from each warehouse)**")
         supply = []
         for i in range(m):
-            val = st.number_input(f"Supply S{i}", value=float(example_supply[i]), 
+            val = st.number_input(f"Warehouse {i+1} Supply", value=float(example_supply[i]), 
                                  key=f"supply_{i}")
             supply.append(val)
     
     with col2:
-        st.write("**Demand** (at each destination)")
+        st.write("**Demand (units needed at each hospital)**")
         demand = []
         for j in range(n):
-            val = st.number_input(f"Demand D{j}", value=float(example_demand[j]), 
+            val = st.number_input(f"Hospital {j+1} Demand", value=float(example_demand[j]), 
                                  key=f"demand_{j}")
             demand.append(val)
     
@@ -336,7 +366,7 @@ with tab1:
             
             if abs(total_supply - total_demand) > 100:
                 st.warning(f"⚠️ Unbalanced problem! Supply={total_supply:.2f}, Demand={total_demand:.2f}")
-                st.info("The model will automatically add a dummy row/column to balance.")
+                st.info("The model will automatically add a dummy warehouse/hospital to balance.")
             
             if initialize_model(cost_matrix, supply, demand):
                 st.success("✅ Model built successfully! Go to VAM Solution tab.")
@@ -388,14 +418,17 @@ with tab2:
                 progress_bar = st.progress(0)
                 status_text = st.empty()
                 
-                total_steps = len(model.vam_steps)
+                total_steps = 0
                 while not model.vam_is_done():
                     step_data = model.vam_step_forward()
-                    st.session_state.vam_step += 1
-                    progress = st.session_state.vam_step / total_steps
-                    progress_bar.progress(progress)
-                    status_text.text(f"Step {st.session_state.vam_step}/{total_steps}")
-                    time.sleep(0.3)
+                    if step_data:
+                        st.session_state.vam_step += 1
+                        total_steps += 1
+                        progress_bar.progress(min(total_steps / 20, 1.0))
+                        status_text.text(f"Step {st.session_state.vam_step}")
+                        time.sleep(0.3)
+                    else:
+                        break
                 
                 progress_bar.progress(1.0)
                 status_text.text("✅ VAM Complete!")
@@ -470,7 +503,8 @@ with tab3:
 st.divider()
 st.markdown("""
     <div style='text-align: center; color: #7f8c8d; padding: 1rem;'>
-        <p>Transportation Problem Solver | Created by <strong>Shahem Riaz</strong> | December 2025</p>
+        <p>🏥 Hospital Medical Supplies Transportation Solver</p>
+        <p>Created by <strong>Shahem Riaz</strong> | December 2025</p>
         <p>Powered by Streamlit 🎈</p>
     </div>
 """, unsafe_allow_html=True)
