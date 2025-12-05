@@ -1,91 +1,25 @@
 """
 Hospital Medical Supply Transportation Optimization with Big M Method
-Streamlit Web Application
-File: app.py
+Google Colab Version
+Simple Console-Based Implementation
 
 Features:
 - Standard Transportation Problem (VAM + MODI)
-- Big M Method for prohibited routes and special constraints
-- Interactive Web Interface
-
-Run with: streamlit run app.py
+- Big M Method for prohibited routes
+- Console-based interface with formatted output
 """
 
-import streamlit as st
-import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
-import plotly.express as px
+import pandas as pd
 from copy import deepcopy
 
-# Page configuration
-st.set_page_config(
-    page_title="Hospital Transportation Optimizer",
-    page_icon="🏥",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# Custom CSS
-st.markdown("""
-<style>
-    .main-header {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: #1f77b4;
-        text-align: center;
-        padding: 1rem;
-        background: linear-gradient(90deg, #e3f2fd 0%, #bbdefb 100%);
-        border-radius: 10px;
-        margin-bottom: 2rem;
-    }
-    .stButton>button {
-        width: 100%;
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        padding: 0.75rem;
-        font-size: 1.1rem;
-        font-weight: bold;
-        border-radius: 8px;
-    }
-    .stButton>button:hover {
-        background: linear-gradient(90deg, #764ba2 0%, #667eea 100%);
-        transform: scale(1.02);
-        transition: all 0.3s ease;
-    }
-    .info-box {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1rem;
-        border-radius: 8px;
-        color: white;
-        margin: 1rem 0;
-    }
-    div[data-testid="stMetricValue"] {
-        font-size: 2rem;
-        font-weight: bold;
-    }
-    .stDataFrame {
-        border-radius: 8px;
-        overflow: hidden;
-    }
-</style>
-""", unsafe_allow_html=True)
-
+# Constants
 EPS = 1e-6
-BIG_M = 999999  # Big M value for prohibited routes
+BIG_M = 999999
 
 class TransportationProblemWithBigM:
     def __init__(self, cost, supply, demand, prohibited_routes=None):
-        """
-        Initialize transportation problem with Big M support
-        
-        Args:
-            cost: m x n cost matrix
-            supply: list of supply at each source
-            demand: list of demand at each destination
-            prohibited_routes: list of tuples (i, j) that are prohibited
-        """
+        """Initialize transportation problem with Big M support"""
         self.original_cost = [list(row) for row in cost]
         self.original_supply = list(supply)
         self.original_demand = list(demand)
@@ -115,8 +49,10 @@ class TransportationProblemWithBigM:
     
     def log(self, message):
         self.logs.append(message)
+        print(message)
     
     def balance_problem(self):
+        """Balance supply and demand"""
         total_supply = sum(self.supply)
         total_demand = sum(self.demand)
         
@@ -129,21 +65,23 @@ class TransportationProblemWithBigM:
             for row in self.cost:
                 row.append(0)
             self.demand.append(diff)
-            self.log(f"⚠️ Added dummy hospital with demand {diff:.0f}")
+            self.log(f"⚠️  Added dummy hospital with demand {diff:.0f}")
         else:
             diff = total_demand - total_supply
             self.cost.append([0] * len(self.demand))
             self.supply.append(diff)
-            self.log(f"⚠️ Added dummy warehouse with supply {diff:.0f}")
+            self.log(f"⚠️  Added dummy warehouse with supply {diff:.0f}")
     
     def solve_vam(self):
-        """VAM with Big M handling"""
-        self.log("="*60)
-        self.log("📊 Starting VAM (Vogel's Approximation Method)")
-        self.log("="*60)
+        """Vogel's Approximation Method with Big M handling"""
+        self.log("\n" + "="*70)
+        self.log("📊 STARTING VAM (VOGEL'S APPROXIMATION METHOD)")
+        self.log("="*70)
         
         if self.prohibited_routes:
-            self.log(f"🚫 Prohibited Routes: {len(self.prohibited_routes)}")
+            self.log(f"🚫 Number of Prohibited Routes: {len(self.prohibited_routes)}")
+            for i, j in self.prohibited_routes:
+                self.log(f"   - Route W{i+1} → H{j+1} is PROHIBITED")
         
         supply = list(self.supply)
         demand = list(self.demand)
@@ -190,7 +128,7 @@ class TransportationProblemWithBigM:
             if max_row_pen == -1 and max_col_pen == -1:
                 break
             
-            # Select cell based on maximum penalty (avoiding Big M routes)
+            # Select cell based on maximum penalty
             if max_row_pen >= max_col_pen:
                 i = row_penalties.index(max_row_pen)
                 min_cost = float('inf')
@@ -208,17 +146,15 @@ class TransportationProblemWithBigM:
                         min_cost = self.cost[ii][j]
                         i = ii
             
-            # Check if we found a valid cell
             if i == -1 or j == -1 or self.cost[i][j] >= BIG_M:
-                self.log("⚠️ No valid allocation found, stopping VAM")
+                self.log("⚠️  No valid allocation found, stopping VAM")
                 break
             
             qty = min(supply[i], demand[j])
             self.allocation[i][j] = qty
             self.is_basic[i][j] = True
             
-            route_status = "🚫 PROHIBITED" if self.cost[i][j] >= BIG_M else ""
-            self.log(f"Step {step}: W{i+1}→H{j+1} | {qty:.0f} units @ PKR {self.cost[i][j]:.0f}/unit {route_status}")
+            self.log(f"Step {step:2d}: W{i+1} → H{j+1} | Allocate {qty:5.0f} units @ PKR {self.cost[i][j]:5.0f}/unit")
             
             supply[i] -= qty
             demand[j] -= qty
@@ -232,10 +168,11 @@ class TransportationProblemWithBigM:
         
         self.fix_degeneracy()
         cost = self.total_cost()
-        self.log(f"\n✅ VAM Complete: Initial Cost = PKR {cost:.2f}")
+        self.log(f"\n✅ VAM Complete: Initial Cost = PKR {cost:,.2f}\n")
         return cost
     
     def fix_degeneracy(self):
+        """Fix degeneracy by adding epsilon allocations"""
         target = self.m + self.n - 1
         current = sum(1 for i in range(self.m) for j in range(self.n) if self.is_basic[i][j])
         
@@ -252,6 +189,7 @@ class TransportationProblemWithBigM:
                     break
     
     def compute_uv(self):
+        """Compute u and v values for MODI method"""
         u = [None] * self.m
         v = [None] * self.n
         u[0] = 0
@@ -268,13 +206,13 @@ class TransportationProblemWithBigM:
         return u, v
     
     def find_entering_cell(self):
+        """Find the entering cell with most negative reduced cost"""
         u, v = self.compute_uv()
         min_reduced = 0
         entering = None
         
         for i in range(self.m):
             for j in range(self.n):
-                # Skip prohibited routes and basic variables
                 if not self.is_basic[i][j] and self.cost[i][j] < BIG_M:
                     if u[i] is not None and v[j] is not None:
                         reduced_cost = self.cost[i][j] - (u[i] + v[j])
@@ -285,6 +223,7 @@ class TransportationProblemWithBigM:
         return entering, min_reduced
     
     def find_cycle(self, entering):
+        """Find a cycle starting from the entering cell"""
         basics = [(i, j) for i in range(self.m) for j in range(self.n)
                   if self.is_basic[i][j] or (i, j) == entering]
         basics_set = set(basics)
@@ -335,6 +274,7 @@ class TransportationProblemWithBigM:
         return None
     
     def apply_cycle(self, cycle):
+        """Apply the cycle to improve the solution"""
         minus_positions = [cycle[i] for i in range(1, len(cycle), 2)]
         theta = min(self.allocation[i][j] for i, j in minus_positions)
         
@@ -352,9 +292,10 @@ class TransportationProblemWithBigM:
         return theta
     
     def solve_modi(self):
-        self.log("\n" + "="*60)
-        self.log("🎯 Starting MODI Method (UV Method)")
-        self.log("="*60)
+        """MODI (Modified Distribution) Method"""
+        self.log("="*70)
+        self.log("🎯 STARTING MODI METHOD (UV METHOD)")
+        self.log("="*70)
         
         iteration = 0
         max_iterations = 100
@@ -370,20 +311,20 @@ class TransportationProblemWithBigM:
             cycle = self.find_cycle(entering)
             
             if cycle is None:
-                self.log(f"⚠️ No cycle found at iteration {iteration}")
+                self.log(f"⚠️  No cycle found at iteration {iteration}")
                 self.fix_degeneracy()
                 continue
             
             theta = self.apply_cycle(cycle)
             cost = self.total_cost()
             
-            self.log(f"Iteration {iteration}: W{entering[0]+1}→H{entering[1]+1} | "
-                    f"Reduced: {reduced_cost:.2f} | New Cost: PKR {cost:.2f}")
+            self.log(f"Iteration {iteration:2d}: Entering Cell W{entering[0]+1}→H{entering[1]+1} | "
+                    f"Reduced Cost: {reduced_cost:7.2f} | New Total Cost: PKR {cost:,.2f}")
         
         return iteration
     
     def total_cost(self):
-        """Calculate total cost, treating Big M routes as infeasible"""
+        """Calculate total transportation cost"""
         total = 0
         has_big_m = False
         
@@ -395,31 +336,74 @@ class TransportationProblemWithBigM:
                     total += self.allocation[i][j] * self.cost[i][j]
         
         if has_big_m:
-            return float('inf')  # Infeasible solution
+            return float('inf')
         
         return total
     
-    def get_allocation_df(self):
-        data = []
+    def print_solution(self):
+        """Print the solution in a formatted way"""
+        print("\n" + "="*70)
+        print("📋 OPTIMAL ALLOCATION MATRIX")
+        print("="*70)
+        
+        # Create allocation table
+        headers = [""] + [f"H{j+1}" for j in range(len(self.original_demand))] + ["Supply"]
+        
+        print(f"{'':>8}", end="")
+        for header in headers[1:-1]:
+            print(f"{header:>8}", end="")
+        print(f"{headers[-1]:>10}")
+        
+        print("-" * 70)
+        
         for i in range(min(self.m, len(self.original_supply))):
-            row = [f"W{i+1}"]
+            print(f"W{i+1:>6} |", end="")
             for j in range(min(self.n, len(self.original_demand))):
                 val = self.allocation[i][j]
                 if self.cost[i][j] >= BIG_M:
-                    row.append("🚫")
+                    print(f"{'🚫':>8}", end="")
                 else:
-                    row.append(int(val) if val > EPS else 0)
-            row.append(self.original_supply[i])
-            data.append(row)
+                    print(f"{int(val):>8}", end="") if val > EPS else print(f"{0:>8}", end="")
+            print(f"{self.original_supply[i]:>10}")
         
-        demand_row = ["Demand"] + list(self.original_demand) + [""]
-        data.append(demand_row)
+        print("-" * 70)
+        print(f"{'Demand':>8}", end="")
+        for d in self.original_demand:
+            print(f"{d:>8}", end="")
+        print()
         
-        cols = [""] + [f"H{j+1}" for j in range(len(self.original_demand))] + ["Supply"]
-        return pd.DataFrame(data, columns=cols)
+        # Print active routes
+        print("\n" + "="*70)
+        print("🚚 ACTIVE TRANSPORTATION ROUTES")
+        print("="*70)
+        
+        routes = []
+        for i in range(min(self.m, len(self.original_supply))):
+            for j in range(min(self.n, len(self.original_demand))):
+                if self.allocation[i][j] > EPS and self.cost[i][j] < BIG_M:
+                    routes.append({
+                        'from': f'W{i+1}',
+                        'to': f'H{j+1}',
+                        'units': int(self.allocation[i][j]),
+                        'cost_per_unit': self.cost[i][j],
+                        'total_cost': int(self.allocation[i][j] * self.cost[i][j])
+                    })
+        
+        routes.sort(key=lambda x: x['total_cost'], reverse=True)
+        
+        print(f"{'Route':>15} | {'Units':>10} | {'Cost/Unit':>12} | {'Total Cost':>15}")
+        print("-" * 70)
+        
+        for route in routes:
+            print(f"{route['from']} → {route['to']:>6} | {route['units']:>10} | "
+                  f"PKR {route['cost_per_unit']:>7.0f} | PKR {route['total_cost']:>11,}")
+        
+        print("-" * 70)
+        print(f"{'TOTAL':>31} | {'':>12} | PKR {sum(r['total_cost'] for r in routes):>11,}")
 
 
-def generate_random_data(n_warehouses, n_hospitals, seed=42):
+def generate_sample_data(n_warehouses=5, n_hospitals=5, seed=42):
+    """Generate sample data for testing"""
     np.random.seed(seed)
     
     cost = np.random.randint(10, 35, size=(n_warehouses, n_hospitals)).tolist()
@@ -441,224 +425,70 @@ def generate_random_data(n_warehouses, n_hospitals, seed=42):
 
 
 def main():
-    # Header
-    st.markdown('<div class="main-header">🏥 Hospital Transportation Optimizer with Big M Method</div>', 
-                unsafe_allow_html=True)
+    """Main function to run the optimization"""
+    print("\n" + "="*70)
+    print("🏥 HOSPITAL MEDICAL SUPPLY TRANSPORTATION OPTIMIZER")
+    print("="*70)
+    print("\nProject Team - Section BSCS-7B:")
+    print("  • Yashal Rafique")
+    print("  • Sahla Farooq")
+    print("  • Barira Aurangzaib")
+    print("  • Hafsa Shad")
+    print("  • Kashifa Kanwal")
+    print("="*70)
     
-    # Sidebar
-    with st.sidebar:
-        st.markdown("""
-        <div style='text-align: center; padding: 1rem;'>
-            <h1 style='font-size: 4rem; margin: 0;'>🏥</h1>
-            <h2 style='color: #667eea; margin-top: 0.5rem;'>Configuration</h2>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("---")
-        
-        mode = st.radio("📊 Input Mode", 
-                       ["Sample Data", "Custom Problem"],
-                       help="Choose between pre-generated sample data or create your own problem")
-        
-        if mode == "Sample Data":
-            n_warehouses = 10
-            n_hospitals = 10
-            seed = st.number_input("🎲 Random Seed", 1, 1000, 42, help="Change this to generate different random data")
-        else:
-            n_warehouses = st.number_input("📦 Number of Warehouses", 2, 15, 5)
-            n_hospitals = st.number_input("🏥 Number of Hospitals", 2, 15, 5)
-            seed = 42
-        
-        st.markdown("---")
-        
-        # Big M Configuration
-        st.markdown("### 🚫 Big M Method")
-        use_big_m = st.checkbox("Enable Prohibited Routes", value=False, 
-                               help="Enable this to specify routes that cannot be used")
-        
-        prohibited_routes = []
-        if use_big_m:
-            st.info("💡 Select routes that are NOT allowed (e.g., W1→H2 means route from Warehouse 1 to Hospital 2 is prohibited)")
-            
-            num_prohibited = st.number_input("Number of prohibited routes", 0, min(n_warehouses * n_hospitals, 20), 2)
-            
-            for idx in range(num_prohibited):
-                col1, col2 = st.columns(2)
-                with col1:
-                    w = st.number_input(f"Route {idx+1}: From W", 1, n_warehouses, min(idx+1, n_warehouses), key=f"w{idx}")
-                with col2:
-                    h = st.number_input(f"To H", 1, n_hospitals, min(idx+1, n_hospitals), key=f"h{idx}")
-                prohibited_routes.append((w-1, h-1))
-        
-        st.markdown("---")
-        st.markdown("### 👥 Project Team")
-        st.markdown("""
-        <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                    padding: 1rem; border-radius: 8px; color: white;'>
-        <b>Section: BSCS-7B</b><br>
-        • Yashal Rafique<br>
-        • Sahla Farooq<br>
-        • Barira Aurangzaib<br>
-        • Hafsa Shad<br>
-        • Kashifa Kanwal
-        </div>
-        """, unsafe_allow_html=True)
+    # Generate sample data
+    print("\n📊 Generating sample problem data...")
+    n_warehouses = 5
+    n_hospitals = 5
+    cost, supply, demand = generate_sample_data(n_warehouses, n_hospitals, seed=42)
     
-    # Main content
-    cost, supply, demand = generate_random_data(n_warehouses, n_hospitals, seed)
+    # Define prohibited routes (optional)
+    prohibited_routes = [
+        (0, 1),  # W1 → H2 is prohibited
+        (2, 3),  # W3 → H4 is prohibited
+    ]
     
-    # Display Input Data
-    st.markdown("## 📋 Problem Configuration")
+    print(f"\n✓ Problem Size: {n_warehouses} Warehouses × {n_hospitals} Hospitals")
+    print(f"✓ Total Supply: {sum(supply):,} units")
+    print(f"✓ Total Demand: {sum(demand):,} units")
+    print(f"✓ Prohibited Routes: {len(prohibited_routes)}")
     
-    col1, col2, col3 = st.columns(3)
+    # Create and solve problem
+    print("\n" + "="*70)
+    problem = TransportationProblemWithBigM(cost, supply, demand, prohibited_routes)
     
-    with col1:
-        st.metric("📦 Total Supply", f"{sum(supply):,} units", help="Total units available from all warehouses")
-    with col2:
-        st.metric("🏥 Total Demand", f"{sum(demand):,} units", help="Total units needed by all hospitals")
-    with col3:
-        st.metric("📐 Problem Size", f"{n_warehouses}×{n_hospitals}", help="Number of warehouses × hospitals")
+    # Solve using VAM
+    initial_cost = problem.solve_vam()
     
-    st.markdown("---")
+    # Optimize using MODI
+    iterations = problem.solve_modi()
     
-    col1, col2 = st.columns(2)
+    # Get final cost
+    final_cost = problem.total_cost()
     
-    with col1:
-        st.markdown("### 📦 Warehouse Supply")
-        supply_df = pd.DataFrame({
-            'Warehouse': [f'W{i+1}' for i in range(len(supply))],
-            'Supply (units)': supply
-        })
-        st.dataframe(supply_df, use_container_width=True, hide_index=True, height=300)
+    # Check feasibility
+    if final_cost == float('inf'):
+        print("\n❌ ERROR: No feasible solution exists!")
+        print("The problem is infeasible with current constraints.")
+        return
     
-    with col2:
-        st.markdown("### 🏥 Hospital Demand")
-        demand_df = pd.DataFrame({
-            'Hospital': [f'H{i+1}' for i in range(len(demand))],
-            'Demand (units)': demand
-        })
-        st.dataframe(demand_df, use_container_width=True, hide_index=True, height=300)
+    # Print results
+    print("\n" + "="*70)
+    print("📊 OPTIMIZATION RESULTS")
+    print("="*70)
+    print(f"Initial Cost (VAM)    : PKR {initial_cost:>15,.2f}")
+    print(f"Final Cost (MODI)     : PKR {final_cost:>15,.2f}")
+    print(f"Cost Saved            : PKR {initial_cost - final_cost:>15,.2f}")
+    print(f"Improvement           : {((initial_cost - final_cost) / initial_cost * 100):>14.2f}%")
+    print(f"MODI Iterations       : {iterations:>19}")
     
-    st.markdown("### 💰 Transportation Cost Matrix (PKR per unit)")
-    cost_df = pd.DataFrame(cost, 
-                          columns=[f'H{i+1}' for i in range(n_hospitals)],
-                          index=[f'W{i+1}' for i in range(n_warehouses)])
+    # Print solution
+    problem.print_solution()
     
-    # Highlight prohibited routes
-    if use_big_m and prohibited_routes:
-        def highlight_prohibited(row):
-            return ['background-color: #ff4444; color: white; font-weight: bold' 
-                    if (int(row.name[1:])-1, int(col[1:])-1) in prohibited_routes 
-                    else '' 
-                    for col in cost_df.columns]
-        
-        styled_df = cost_df.style.apply(highlight_prohibited, axis=1)
-        st.dataframe(styled_df, use_container_width=True, height=400)
-        
-        st.warning(f"🚫 {len(prohibited_routes)} prohibited routes marked in red. These routes will not be used in the solution.")
-    else:
-        st.dataframe(cost_df, use_container_width=True, height=400)
-    
-    st.markdown("---")
-    
-    # Solve Button
-    if st.button("🚀 Solve Optimization Problem", type="primary"):
-        with st.spinner("🔄 Solving transportation problem... Please wait"):
-            try:
-                problem = TransportationProblemWithBigM(cost, supply, demand, prohibited_routes if use_big_m else None)
-                
-                initial_cost = problem.solve_vam()
-                iterations = problem.solve_modi()
-                final_cost = problem.total_cost()
-                
-                if final_cost == float('inf'):
-                    st.error("❌ No feasible solution exists! The problem is infeasible with the current constraints. Try removing some prohibited routes.")
-                    st.stop()
-                
-                st.success("✅ Optimization Complete!")
-                
-                # Metrics
-                st.markdown("## 📊 Solution Summary")
-                col1, col2, col3, col4 = st.columns(4)
-                
-                with col1:
-                    st.metric("Initial Cost (VAM)", f"PKR {initial_cost:,.2f}", 
-                             help="Initial solution cost using Vogel's Approximation Method")
-                
-                with col2:
-                    st.metric("Final Cost (MODI)", f"PKR {final_cost:,.2f}", 
-                             help="Optimized cost using Modified Distribution Method")
-                
-                with col3:
-                    improvement = initial_cost - final_cost
-                    pct = (improvement/initial_cost*100) if initial_cost > 0 else 0
-                    st.metric("Cost Saved", f"PKR {improvement:,.2f}", 
-                             delta=f"-{pct:.1f}%", delta_color="inverse",
-                             help="Total cost reduction achieved through optimization")
-                
-                with col4:
-                    st.metric("MODI Iterations", iterations,
-                             help="Number of iterations taken to reach optimal solution")
-                
-                st.markdown("---")
-                
-                # Allocation Table
-                st.markdown("### 📋 Optimal Allocation Matrix")
-                st.markdown("*Shows the quantity of supplies to transport from each warehouse to each hospital*")
-                allocation_df = problem.get_allocation_df()
-                st.dataframe(allocation_df, use_container_width=True, hide_index=True)
-                
-                st.markdown("---")
-                
-                # Route Details
-                st.markdown("### 🚚 Active Transportation Routes")
-                routes = []
-                for i in range(min(problem.m, len(supply))):
-                    for j in range(min(problem.n, len(demand))):
-                        if problem.allocation[i][j] > EPS and problem.cost[i][j] < BIG_M:
-                            routes.append({
-                                'Route': f'W{i+1} → H{j+1}',
-                                'Units': int(problem.allocation[i][j]),
-                                'Cost/Unit (PKR)': problem.cost[i][j],
-                                'Total Cost (PKR)': int(problem.allocation[i][j] * problem.cost[i][j])
-                            })
-                
-                if routes:
-                    routes_df = pd.DataFrame(routes)
-                    routes_df = routes_df.sort_values('Total Cost (PKR)', ascending=False)
-                    st.dataframe(routes_df, use_container_width=True, hide_index=True)
-                    
-                    # Visualization
-                    st.markdown("### 📊 Cost Breakdown Visualization")
-                    
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        fig = px.bar(routes_df, x='Route', y='Total Cost (PKR)', 
-                                    title='Transportation Cost by Route',
-                                    color='Total Cost (PKR)',
-                                    color_continuous_scale='Viridis',
-                                    labels={'Total Cost (PKR)': 'Cost (PKR)'})
-                        fig.update_layout(height=400, xaxis_tickangle=-45)
-                        st.plotly_chart(fig, use_container_width=True)
-                    
-                    with col2:
-                        fig = px.pie(routes_df, values='Units', names='Route',
-                                    title='Distribution of Units by Route',
-                                    color_discrete_sequence=px.colors.qualitative.Set3)
-                        fig.update_layout(height=400)
-                        st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.warning("No active routes found in the solution.")
-                
-                # Solution Log
-                st.markdown("---")
-                with st.expander("📝 View Detailed Solution Log"):
-                    st.code("\n".join(problem.logs), language="text")
-                    
-            except Exception as e:
-                st.error(f"❌ An error occurred: {str(e)}")
-                st.exception(e)
+    print("\n" + "="*70)
+    print("✅ OPTIMIZATION COMPLETE!")
+    print("="*70 + "\n")
 
 
 if __name__ == "__main__":
